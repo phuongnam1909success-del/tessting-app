@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ thống Tính Lương Tự Động</title>
+  <meta name="description" content="Ứng dụng quản lý tính lương và chấm công nhân sự.">
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="login-pending">
+
+  <!-- View: Màn hình Đăng nhập -->
+  <div id="loginView" class="login-overlay">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo">Payroll<span>Pro</span></div>
+        <p>Hệ thống Quản lý Nhân sự & Tiền lương</p>
+      </div>
+      <div class="login-body">
+        <div class="form-group">
+          <label>Tên đăng nhập</label>
+          <input type="text" id="loginUser" placeholder="admin / user">
+        </div>
+        <div class="form-group">
+          <label>Mật khẩu</label>
+          <input type="password" id="loginPass" placeholder="••••••••">
+        </div>
+        <button class="btn btn-primary" id="btnDoLogin" style="width: 100%; margin-top: 1rem; height: 45px; font-size: 1rem;">Đăng Nhập</button>
+        <div id="loginError" style="color: #EF4444; font-size: 0.85rem; text-align: center; margin-top: 15px; display: none;">Tài khoản hoặc mật khẩu không đúng!</div>
+      </div>
+      <div class="login-footer">
+        <p>© 2026 Bi's Mart Ecosystem. All rights reserved.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" aria-label="Thanh điều hướng">
+    <div class="logo">Payroll<span>Pro</span></div>
+    
+    <!-- Thông tin User đang đăng nhập -->
+    <div class="user-profile-compact" id="sidebarUserProfile" style="display: none;">
+      <img src="https://ui-avatars.com/api/?name=User&background=random" id="sideUserAvatar" class="avatar-sm">
+      <div class="user-info">
+        <div class="user-name" id="sideUserName">Evan Nam</div>
+        <div class="user-role" id="sideUserRole">Admin</div>
+      </div>
+    </div>
+
+    <ul class="nav-menu">
+      <li class="nav-item active" data-target="dashboardView" id="navDashboard">📊 Tổng quan</li>
+      <li class="nav-item" data-target="hrmView" id="navHrm">👥 Nhân Sự</li>
+      <li class="nav-item" data-target="bonusConfigView" id="navBonus">🎁 Thưởng KPI</li>
+      <li class="nav-item" data-target="timekeepingView" id="navTimekeeping">⏱️ Chấm Công</li>
+      <li class="nav-item" data-target="payrollView" id="navPayroll">💰 Bảng Lương</li>
+      <li class="nav-item" data-target="policyView" id="navPolicy">⚖️ Quy Chế Lương</li>
+      <li class="nav-item admin-only" data-target="logsView" id="navLogs">🛡️ Nhật Ký Hoạt Động</li>
+      <li class="nav-item" data-target="accountView" id="navAccount">👤 Tài Khoản</li>
+      <li class="nav-item admin-only" data-target="settingsView" id="navSettings">⚙️ Cấu Hình</li>
+    </ul>
+
+    <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+      <button class="btn btn-outline" id="btnLogout" style="width: 100%; border-color: #F87171; color: #DC2626;">🚪 Đăng Xuất</button>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    
+    <div class="header">
+      <h1 id="pageTitle">Tổng quan (Dashboard)</h1>
+      <div id="loader" class="loader"></div>
+      <div class="flex-between" style="gap: 8px;">
+        <!-- Zoom Controls (Google Sheets style) -->
+        <div class="zoom-controls" id="zoomControls">
+          <button class="zoom-btn" id="btnZoomOut" title="Thu nhỏ (Ctrl+-)">−</button>
+          <select class="zoom-select" id="zoomSelect" title="Mức phóng to">
+            <option value="50">50%</option>
+            <option value="75">75%</option>
+            <option value="90">90%</option>
+            <option value="100" selected>100%</option>
+            <option value="110">110%</option>
+            <option value="125">125%</option>
+            <option value="150">150%</option>
+          </select>
+          <button class="zoom-btn" id="btnZoomIn" title="Phóng to (Ctrl++)">&plus;</button>
+          <button class="zoom-btn" id="btnZoomReset" title="Đặt lại 100%" style="font-size:0.8rem;padding:0 8px;">↺</button>
+        </div>
+        <div class="search-container" id="searchContainer">
+          <input type="search" id="globalSearch" placeholder="Tìm tên, mã NV..." title="Tìm kiếm nhanh">
+          <span class="search-icon">🔍</span>
+        </div>
+        <select id="storeFilter" title="Lọc theo cửa hàng">
+          <option value="all">🏢 Tất cả cửa hàng</option>
+        </select>
+        <input type="month" id="globalMonth" title="Chọn tháng làm việc" />
+        <button class="btn btn-outline" id="btnRefresh">🔄 Làm mới</button>
+      </div>
+    </div>
+
+    <!-- Scaleable content wrapper -->
+    <div id="zoomWrapper">
+
+    <!-- View: Dashboard -->
+    <section id="dashboardView" class="view-section active">
+      <div class="grid-cards">
+        <div class="card">
+          <div class="card-title">Tổng Nhân sự</div>
+          <div class="card-value" id="dashTotalEmp">0</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Quỹ Lương Tháng</div>
+          <div class="card-value highlight" id="dashTotalPayroll">0 ₫</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tổng Thưởng</div>
+          <div class="card-value success" id="dashTotalBonus">0 ₫</div>
+          <div class="stat-pills-container">
+            <span class="stat-pill new" title="Nhân viên mới tháng này">🆕 <span id="statNewEmp">0</span> mới</span>
+            <span class="stat-pill left" title="Nhân viên nghỉ tháng này">🏃 <span id="statLeftEmp">0</span> nghỉ</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-charts-row" style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; margin-top: 1.5rem;">
+        <div class="card chart-card">
+          <div class="card-title">Cấu trúc Quỹ Lương</div>
+          <div class="donut-container">
+            <div id="payrollDonut" class="chart-donut"></div>
+            <div class="donut-center">
+              <span id="donutPercent">0%</span>
+              <small>Thực lĩnh</small>
+            </div>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><span class="dot" style="background:var(--primary-color)"></span> Thực nhận</div>
+            <div class="legend-item"><span class="dot" style="background:#EF4444"></span> Khấu trừ/BH</div>
+          </div>
+        </div>
+        
+        <div class="card chart-card">
+          <div class="card-title">Top thu nhập cao nhất</div>
+          <div class="bar-chart-container" id="topEarnersBar">
+            <!-- Bars injected via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- NEW: Dashboard Insights Row -->
+      <div class="dashboard-insights-row">
+        <!-- KPI Performance Distribution -->
+        <div class="card chart-card">
+          <div class="card-title">Phân bổ hiệu suất KPI (%)</div>
+          <div class="kpi-dist-container" id="kpiDistChart">
+            <!-- Generated by JS -->
+          </div>
+        </div>
+
+        <!-- Top Absentees -->
+        <div class="card chart-card">
+          <div class="card-title">Nhân viên vắng mặt nhiều nhất</div>
+          <div class="insight-list" id="topAbsenteesList">
+            <!-- Generated by JS -->
+          </div>
+        </div>
+
+        <!-- Top Bonuses -->
+        <div class="card chart-card">
+          <div class="card-title">Các khoản thưởng lớn nhất</div>
+          <div class="insight-list" id="topBonusesList">
+            <!-- Generated by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: Nhập Data Nhân sự -->
+    <section id="hrmView" class="view-section">
+      <div class="hrm-toolbar">
+        <h2 style="margin: 0; font-size: 1.2rem;">Danh sách Nhân sự toàn hệ thống</h2>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" id="btnOpenAddHr">➕ Thêm Nhân sự mới</button>
+          <button class="btn btn-outline" id="btnSaveHrm">💾 Lưu lên Cloud</button>
+        </div>
+      </div>
+
+      <div class="table-container" style="overflow-x: auto; white-space: nowrap;">
+        <table id="hrmTable" class="table">
+          <thead>
+            <tr>
+              <th style="min-width: 80px;">Mã NV</th>
+              <th style="min-width: 150px;">Họ Tên</th>
+              <th style="min-width: 120px;">Cửa Hàng</th>
+              <th style="min-width: 120px;">Phòng Ban</th>
+              <th style="min-width: 120px;">Chức Vụ</th>
+              <th style="min-width: 120px;">STK / Ngân Hàng</th>
+              <th style="min-width: 120px;">SĐT</th>
+              <th style="min-width: 120px;">CCCD</th>
+              <th style="min-width: 120px;">Ngày Thử Việc</th>
+              <th style="min-width: 120px;">Ngày Ký HĐ</th>
+              <th style="min-width: 120px;">Lương CB</th>
+              <th style="min-width: 120px;">Thưởng CV</th>
+              <th style="min-width: 120px;">Th.Trách Nhiệm</th>
+              <th style="min-width: 180px;">KPI (Mặc định)</th>
+              <th style="min-width: 150px;">KPI Khác</th>
+              <th style="min-width: 120px; text-align: center;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows rendered by JS -->
+          </tbody>
+        </table>
+        <div style="margin-top: 1rem; text-align: right;">
+          <button class="btn btn-secondary" id="btnSaveHRM">💾 Lưu Data Nhân Sự Lên Sheet</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: Theo dõi KPI -->
+    <section id="bonusConfigView" class="view-section">
+      <div class="flex-between" style="margin-bottom: 1rem;">
+        <h2 style="font-size: 1.2rem;">Bảng Thưởng KPI Tháng <span id="lblKpiMonth">...</span></h2>
+        <button class="btn btn-primary" id="btnSaveKpiData">💾 Lưu Dữ Liệu KPI</button>
+      </div>
+
+      <div class="table-container" style="overflow-x: auto; white-space: nowrap; border: 1px solid #ddd;">
+        <table id="kpiTable" class="table" style="border-collapse: collapse;">
+          <thead style="background: #F8FAFC; color: #475569;">
+            <tr>
+              <th rowspan="2" style="position: sticky; left: 0; background: #E2E8F0; border-right: 1px solid #CBD5E1; color: #1E293B;">STT</th>
+              <th rowspan="2" style="position: sticky; left: 40px; background: #E2E8F0; border-right: 1px solid #CBD5E1; color: #1E293B;">Mã NV</th>
+              <th rowspan="2" style="position: sticky; left: 110px; background: #E2E8F0; border-right: 1px solid #CBD5E1; color: #1E293B;">Nhân Viên</th>
+              <th rowspan="2" style="border-right: 1px solid #E2E8F0;">Cửa Hàng</th>
+              <th rowspan="2" style="border-right: 1px solid #E2E8F0;">Chức Vụ</th>
+              <th colspan="4" style="text-align: center; background: #EFF6FF; color: #1E40AF; border-right: 1px solid #BFDBFE;">CHỈ TIÊU BÁN HÀNG</th>
+              <th colspan="4" style="text-align: center; background: #F0FDF4; color: #166534; border-right: 1px solid #BBF7D0;">THỰC ĐẠT</th>
+              <th colspan="4" style="text-align: center; background: #F8FAFC; color: #334155; border-right: 1px solid #E2E8F0;">TỶ LỆ %</th>
+              <th colspan="4" style="text-align: center; background: #EEF2FF; color: #3730A3; border-right: 1px solid #C7D2FE;">THƯỞNG KẾT QUẢ</th>
+              <th rowspan="2" style="background: #FFFBEB; color: #92400E; border-right: 1px solid #FDE68A;">Thưởng Vượt</th>
+              <th rowspan="2" style="background: #FFFBEB; color: #92400E; border-right: 1px solid #FDE68A;">Hỗ Trợ Khác</th>
+              <th rowspan="2" style="background: #FEF2F2; color: #991B1B; border-right: 1px solid #FECACA;">Tổng Cộng Nhận</th>
+            </tr>
+            <tr>
+              <th style="background: #DBEAFE; color: #1E40AF; border-right: 1px solid #BFDBFE;">NUs</th>
+              <th style="background: #DBEAFE; color: #1E40AF; border-right: 1px solid #BFDBFE;">DS TỔNG</th>
+              <th style="background: #DBEAFE; color: #1E40AF; border-right: 1px solid #BFDBFE;">DS N1</th>
+              <th style="background: #DBEAFE; color: #1E40AF; border-right: 1px solid #BFDBFE;">MỤC KHÁC</th>
+              <th style="background: #DCFCE7; color: #166534; border-right: 1px solid #BBF7D0;">NUs</th>
+              <th style="background: #DCFCE7; color: #166534; border-right: 1px solid #BBF7D0;">DS TỔNG</th>
+              <th style="background: #DCFCE7; color: #166534; border-right: 1px solid #BBF7D0;">DS N1</th>
+              <th style="background: #DCFCE7; color: #166534; border-right: 1px solid #BBF7D0;">MỤC KHÁC</th>
+              <th style="background: #F1F5F9; color: #334155; border-right: 1px solid #E2E8F0;">NUs</th>
+              <th style="background: #F1F5F9; color: #334155; border-right: 1px solid #E2E8F0;">DS TỔNG</th>
+              <th style="background: #F1F5F9; color: #334155; border-right: 1px solid #E2E8F0;">DS N1</th>
+              <th style="background: #F1F5F9; color: #334155; border-right: 1px solid #E2E8F0;">MỤC KHÁC</th>
+              <th style="background: #E0E7FF; color: #3730A3; border-right: 1px solid #C7D2FE;">NUs</th>
+              <th style="background: #E0E7FF; color: #3730A3; border-right: 1px solid #C7D2FE;">DS TỔNG</th>
+              <th style="background: #E0E7FF; color: #3730A3; border-right: 1px solid #C7D2FE;">DS N1</th>
+              <th style="background: #E0E7FF; color: #3730A3; border-right: 1px solid #C7D2FE;">MỤC KHÁC</th>
+            </tr>
+          </thead>
+          <tbody id="kpiTableBody">
+            <!-- Rendered via JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- View: Chấm công & Chấm thưởng -->
+    <section id="timekeepingView" class="view-section">
+      <div class="flex-between" style="margin-bottom: 1rem;">
+        <h2 style="font-size: 1.2rem;">Chấm Công Tháng <span id="lblTimekeepingMonth">...</span></h2>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <label style="font-weight: 600; font-size: 0.9rem;">Ngày công chuẩn:</label>
+          <input type="number" id="inpNgayCongChuan" value="24" style="width: 80px; padding: 0.4rem;" />
+          <button class="btn btn-primary" id="btnSaveTimekeeping">💾 Lưu Chấm Công</button>
+        </div>
+      </div>
+
+      <div class="grid-cards" style="grid-template-columns: 1fr; margin-bottom: 1rem;">
+        <div class="card" style="padding: 1rem;">
+          <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: #1E293B;">Ký hiệu chấm công</h3>
+          <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.85rem;">
+            <div><span class="badge" style="background:#DCFCE7; color:#166534">P</span> Phép năm</div>
+            <div><span class="badge" style="background:#FEE2E2; color:#991B1B">K</span> Nghỉ không lương</div>
+            <div><span class="badge" style="background:#E0E7FF; color:#3730A3">NL</span> Lễ</div>
+            <div><span class="badge" style="background:#F3F4F6; color:#475569">NN</span> Nghỉ ngày thường</div>
+            <div><span class="badge" style="background:#FEF3C7; color:#92400E">CG</span> Ca gãy</div>
+            <div><span class="badge" style="background:#E0F2FE; color:#075985">CF</span> Ca full (nguyên ngày)</div>
+          </div>
+          <div style="font-size: 0.8rem; color: #64748B; margin-top: 10px;">
+            * Ghi chú: Kế hoạch là "Ngày Lễ" (NL) sẽ tự mặc định điền 8 giờ. Kế hoạch là "Nghỉ" (NN) thì Giờ công sẽ bị bỏ trống. Giờ tăng ca cũng sẽ tự phân bổ về TCNL, TCNN hoặc TCNT dựa trên khai báo ở dòng [Đăng ký ca].
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-container" style="overflow-x: auto; white-space: nowrap; padding: 0;">
+        <table id="timekeepingTable" class="table" style="border-collapse: collapse; min-width: max-content;">
+          <thead id="tkTableHead" style="background: #F8FAFC; color: #475569;">
+            <!-- Generated heavily by JS -->
+          </thead>
+          <tbody id="tkTableBody">
+            <!-- Rendered via JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- View: Bảng Lương -->
+    <section id="payrollView" class="view-section">
+      <div class="flex-between" style="margin-bottom: 1rem;">
+        <h2 style="font-size: 1.2rem;">Bảng Lương Tháng <span id="lblPayrollMonth">...</span></h2>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" id="btnPrintPayroll">🖨️ In Bảng Lương</button>
+          <button class="btn btn-outline" id="btnOpenBulkPrint">🖨️ In Phiếu Hàng Loạt</button>
+          <button class="btn btn-primary" id="btnCalculatePayroll">⚙️ Chốt & Tính Lương (Lưu)</button>
+        </div>
+      </div>
+
+      <div class="table-container" style="overflow-x: auto; white-space: nowrap; padding: 0;">
+        <table id="payrollTable" class="table" style="border-collapse: collapse; min-width: max-content;">
+          <thead id="payrollTableHead" style="background: #F8FAFC; color: #475569;">
+            <!-- Generated by JS -->
+          </thead>
+          <tbody id="payrollTableBody">
+            <!-- Rendered via JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- View: Cấu hình (Settings) -->
+    <section id="settingsView" class="view-section">
+      <div class="card">
+        <h2 style="margin-bottom: 1.5rem;">Cấu hình Hệ thống</h2>
+        <div class="grid-cards" style="grid-template-columns: repeat(2, 1fr); gap: 2rem;">
+          <div>
+            <h3 style="font-size: 1rem; margin-bottom: 1rem; color: var(--primary-color);">Cài đặt chung</h3>
+            <div class="form-group">
+              <label>Tên Công ty / Thương hiệu</label>
+              <input type="text" id="setCompanyName" value="Bi's Mart - Hệ thống Cửa hàng">
+            </div>
+            <div class="form-group">
+              <label>Mã bảo mật để sửa dữ liệu đã khóa</label>
+              <input type="password" id="setAdminPass" value="123456">
+            </div>
+          </div>
+          <div>
+            <h3 style="font-size: 1rem; margin-bottom: 1rem; color: #EF4444;">Tham số tính toán</h3>
+            <div class="form-group">
+              <label>Tỷ lệ BHXH cá nhân nộp (%)</label>
+              <input type="number" id="setBhRate" value="10.5" step="0.1">
+            </div>
+            <div class="form-group">
+              <label>Trạng thái Dữ liệu</label>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <label class="btn btn-outline" style="flex: 1; cursor: pointer;">
+                  <input type="checkbox" id="setLockStatus" style="width: auto; margin-right: 5px;"> Khóa dữ liệu (Read-only)
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1rem; text-align: right;">
+          <button class="btn btn-primary" id="btnSaveSettings">💾 Lưu Cấu hình</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: QUY CHẾ LƯƠNG -->
+    <section id="policyView" class="view-section" style="padding: 20px;">
+      <div class="policy-container" style="display: block !important; visibility: visible !important;">
+        <div class="policy-card">
+          <div class="policy-header">
+            <h1 style="color: var(--primary-color);">Quy Chế Lương 2026</h1>
+            <div style="font-size: 0.9rem; color: #64748B;">Lưu hành nội bộ: Bi's Mart</div>
+          </div>
+
+          <div class="policy-section-title">I. Bảng lương tối thiểu vùng (Định mức đóng BHXH)</div>
+          <table class="policy-table">
+            <thead>
+              <tr>
+                <th>Vùng áp dụng</th>
+                <th>Vùng I</th>
+                <th>Vùng II</th>
+                <th>Vùng III</th>
+                <th>Vùng IV</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Mức lương tối thiếu vùng / Mức đóng BHXH</td>
+                <td>5.310.000 ₫</td>
+                <td>4.730.000 ₫</td>
+                <td>4.140.000 ₫</td>
+                <td>3.700.000 ₫</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="policy-section-title">II. Công thức tính lương cơ bản & OT</div>
+          <div class="formula-grid">
+            <div class="formula-card">
+              <div class="title">1. Số ngày công chuẩn của tháng</div>
+              <div class="math">Ngày công = Tổng ngày tháng - 4</div>
+              <div style="font-size: 0.8rem; color: #64748B; margin-top: 5px;">(Tháng 31 ngày => Công chuẩn 27)</div>
+            </div>
+            <div class="formula-card">
+              <div class="title">2. Đơn giá tiền lương 1 giờ</div>
+              <div class="math">Lương 1 giờ = Lương CB / (Ngày công × 8)</div>
+            </div>
+          </div>
+
+          <div class="policy-section-title">III. Hệ số làm thêm giờ (OT)</div>
+          <table class="policy-table" style="width: auto; min-width: 400px;">
+            <thead>
+              <tr>
+                <th>Trường hợp</th>
+                <th>Hệ số tính toán</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Tăng ca Ngày thường</td>
+                <td style="color: #DC2626; font-weight: 700;">150%</td>
+              </tr>
+              <tr>
+                <td>Tăng ca Ngày nghỉ (CN)</td>
+                <td style="color: #DC2626; font-weight: 700;">200%</td>
+              </tr>
+              <tr>
+                <td>Tăng ca Ngày Lễ/Tết</td>
+                <td style="color: #DC2626; font-weight: 700;">300%</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="policy-section-title">IV. Các khoản phụ cấp & Thưởng</div>
+          <table class="policy-table">
+            <thead>
+              <tr>
+                <th>Loại phụ cấp / Thưởng</th>
+                <th>Mức hưởng / Điều kiện hưởng</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Thưởng Chuyên cần (Mức 1)</b></td>
+                <td>350.000 ₫ (Đào tạo A + 100% công + không vi phạm)</td>
+              </tr>
+              <tr>
+                <td><b>Thưởng Chuyên cần (Mức 2)</b></td>
+                <td>150.000 ₫ (Đào tạo A+1P hoặc Đào tạo B+100% công)</td>
+              </tr>
+              <tr>
+                <td><b>Thưởng Trách nhiệm</b></td>
+                <td>Lvl 2: 300k | Lvl 3: 500k | CH Trưởng: 1.200k</td>
+              </tr>
+              <tr>
+                <td><b>Thưởng KPI</b></td>
+                <td>Tính theo % hoàn thành kế hoạch (70% - 100%)</td>
+              </tr>
+              <tr>
+                <td><b>Thưởng Sản phẩm</b></td>
+                <td>1% Doanh số nhóm 1 (Sữa bột, Đầu thùng...)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="policy-note-box">
+            <h4>⚠️ Quy định bổ sung quan trọng</h4>
+            <ul style="margin: 0; padding-left: 1.5rem; font-size: 0.85rem; line-height: 1.6;">
+              <li>Thời gian tăng ca: Không quá 4 giờ/ngày và 40 giờ/tháng.</li>
+              <li>Bảo hiểm xã hội: Khấu trừ 10.5% vào lương thực lĩnh.</li>
+              <li>Thâm niên: Mỗi 6 tháng làm việc liên tục sẽ được cộng thêm 10.000đ vào lương.</li>
+              <li>Ngày nghỉ lễ trong năm: 11 ngày nghỉ có hưởng lương theo quy định.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: Tài Khoản (Account) -->
+    <section id="accountView" class="view-section">
+      <div class="card" style="max-width: 800px; margin: 0 auto;">
+        <div style="display: flex; gap: 2rem; align-items: flex-start;">
+          <div style="text-align: center;">
+            <div class="avatar-upload">
+              <img src="https://ui-avatars.com/api/?name=User&background=random" id="accAvatar" style="width: 150px; height: 150px; border-radius: 50%; border: 4px solid #F1F5F9; object-fit: cover;">
+              <div class="avatar-edit">
+                <input type="text" id="accAvatarURL" placeholder="Dán link ảnh mới..." style="margin-top: 10px; font-size: 0.75rem;">
+                <p style="font-size: 0.7rem; color: #94A3B8; margin-top: 5px;">(Ưu tiên link ảnh trực tuyến)</p>
+              </div>
+            </div>
+          </div>
+          <div style="flex: 1;">
+            <h2 style="margin-bottom: 1.5rem;">Hồ sơ cá nhân</h2>
+            <div class="grid-cards" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>Tên hiển thị</label>
+                <input type="text" id="accFullName">
+              </div>
+              <div class="form-group">
+                <label>Tên đăng nhập (ID)</label>
+                <input type="text" id="accUsername" readonly style="background: #F1F5F9;">
+              </div>
+              <div class="form-group">
+                <label>Mật khẩu mới</label>
+                <input type="password" id="accNewPass" placeholder="Bỏ trống nếu không đổi">
+              </div>
+              <div class="form-group">
+                <label>Quyền hạn</label>
+                <input type="text" id="accRole" readonly style="background: #F1F5F9;">
+              </div>
+            </div>
+            <div style="margin-top: 2rem; text-align: right;">
+              <button class="btn btn-primary" id="btnUpdateProfile">💾 Cập nhật hồ sơ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: Nhật ký Hoạt động (Logs) - Admin Only -->
+    <section id="logsView" class="view-section">
+      <div class="card">
+        <div class="flex-between" style="margin-bottom: 1.5rem;">
+          <h2>Nhật ký hoạt động hệ thống</h2>
+          <button class="btn btn-outline" id="btnRefreshLogs">🔄 Làm mới</button>
+        </div>
+        <div class="table-container" style="max-height: 500px; overflow-y: auto;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Thời gian</th>
+                <th>Người dùng</th>
+                <th>Thao tác</th>
+                <th>Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Container tạm để render PDF (Ẩn khỏi màn hình nhưng không display:none để html2pdf hoạt động tốt) -->
+    <div id="bulkRefContainer" style="position: fixed; left: -9999px; top: 0; width: 800px; background: white; padding: 20px;"></div>
+
+    </div><!-- /zoomWrapper -->
+
+  </main>
+
+  <!-- PRINT TEMPLATE (Hidden by default, shown only in print media) -->
+  <div id="printTemplate" class="print-only"></div>
+
+  <!-- MODALS (Global Context) -->
+  <div id="hrmModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header dark">
+        <h2 id="hrmModalTitle">Thêm / Cập nhật Nhân sự</h2>
+        <button class="modal-close" id="btnCloseHrmModal" title="Đóng">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-cards" style="grid-template-columns: repeat(4, 1fr); align-items: end; gap: 10px; margin-bottom: 15px;">
+          <div class="form-group" style="margin: 0;"><label>Mã NV</label><input type="text" id="hrMaNV" placeholder="VD: NV004"></div>
+          <div class="form-group" style="margin: 0;"><label>Họ Tên</label><input type="text" id="hrHoTen" placeholder="Nguyễn Văn A"></div>
+          <div class="form-group" style="margin: 0;"><label>Cửa Hàng</label><input type="text" id="hrCuaHang" placeholder="CH Quận 1"></div>
+          <div class="form-group" style="margin: 0;"><label>Phòng Ban / Bộ Phận</label><input type="text" id="hrPhongBan" placeholder="Kinh doanh"></div>
+        </div>
+        <div class="grid-cards" style="grid-template-columns: repeat(4, 1fr); align-items: end; gap: 10px; margin-bottom: 15px;">
+          <div class="form-group" style="margin: 0;"><label>Chức Vụ</label><input type="text" id="hrChucVu" placeholder="Nhân viên Tư Vấn"></div>
+          <div class="form-group" style="margin: 0;"><label>Ngày Sinh</label><input type="date" id="hrNgaySinh"></div>
+          <div class="form-group" style="margin: 0;"><label>Số ĐT</label><input type="text" id="hrSDT" placeholder="0909..."></div>
+          <div class="form-group" style="margin: 0;"><label>Số CCCD</label><input type="text" id="hrCCCD"></div>
+        </div>
+        <div class="grid-cards" style="grid-template-columns: repeat(4, 1fr); align-items: end; gap: 10px; margin-bottom: 15px;">
+          <div class="form-group" style="margin: 0;"><label>Nơi Cấp CCCD</label><input type="text" id="hrNoiCap"></div>
+          <div class="form-group" style="margin: 0;"><label>Bằng Cấp</label><input type="text" id="hrBangCap"></div>
+          <div class="form-group" style="margin: 0;"><label>Người Phụ Thuộc (Số lượng)</label><input type="number" id="hrNguoiPhuThuoc"></div>
+          <div class="form-group" style="margin: 0;"><label>Số Sổ BHXH</label><input type="text" id="hrBHXH"></div>
+        </div>
+        <div class="grid-cards" style="grid-template-columns: repeat(4, 1fr); align-items: end; gap: 10px; margin-bottom: 15px;">
+          <div class="form-group" style="margin: 0;"><label>Ngày Thử Việc</label><input type="date" id="hrNgayThuViec"></div>
+          <div class="form-group" style="margin: 0;"><label>Ngày Ký HĐ</label><input type="date" id="hrNgayKyHD"></div>
+          <div class="form-group" style="margin: 0;"><label>STK Ngân Hàng</label><input type="text" id="hrSTK"></div>
+          <div class="form-group" style="margin: 0;"><label>Lương Cơ Bản</label><input type="number" id="hrLuongCB"></div>
+        </div>
+        <div class="grid-cards" style="grid-template-columns: repeat(4, 1fr); align-items: end; gap: 10px; margin-bottom: 20px;">
+          <div class="form-group" style="margin: 0;"><label>Thưởng Chuyên Cần</label><input type="number" id="hrThuongChuyenCan" placeholder="500000"></div>
+          <div class="form-group" style="margin: 0;"><label>Thưởng Trách Nhiệm</label><input type="number" id="hrThuongTrachNhiem"></div>
+        </div>
+
+        <div class="flex-between" style="border-bottom: 2px solid var(--primary-color); padding-bottom: 5px; margin-bottom: 15px;">
+          <h3 style="margin: 0; font-size: 1rem; color: var(--primary-color);">Cấu hình Thưởng KPI Doanh Số Thực Đạt</h3>
+        </div>
+        <div class="grid-cards" style="grid-template-columns: repeat(4, 1fr); gap: 10px;">
+          <div style="padding: 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">
+            <h4 style="text-align:center; color: var(--primary-color); margin-top:0; margin-bottom: 10px;">Đạt 70%</h4>
+            <div class="form-group"><label>NUs</label><input type="number" id="kpi70_nu" placeholder="280000"></div>
+            <div class="form-group"><label>DS TỔNG</label><input type="number" id="kpi70_dst" placeholder="120000"></div>
+            <div class="form-group" style="margin: 0;"><label>DS N1</label><input type="number" id="kpi70_dsn1" placeholder="400000"></div>
+          </div>
+          <div style="padding: 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">
+            <h4 style="text-align:center; color: var(--primary-color); margin-top:0; margin-bottom: 10px;">Đạt 80%</h4>
+            <div class="form-group"><label>NUs</label><input type="number" id="kpi80_nu" placeholder="385000"></div>
+            <div class="form-group"><label>DS TỔNG</label><input type="number" id="kpi80_dst" placeholder="165000"></div>
+            <div class="form-group" style="margin: 0;"><label>DS N1</label><input type="number" id="kpi80_dsn1" placeholder="550000"></div>
+          </div>
+          <div style="padding: 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">
+            <h4 style="text-align:center; color: var(--primary-color); margin-top:0; margin-bottom: 10px;">Đạt 90%</h4>
+            <div class="form-group"><label>NUs</label><input type="number" id="kpi90_nu" placeholder="560000"></div>
+            <div class="form-group"><label>DS TỔNG</label><input type="number" id="kpi90_dst" placeholder="240000"></div>
+            <div class="form-group" style="margin: 0;"><label>DS N1</label><input type="number" id="kpi90_dsn1" placeholder="800000"></div>
+          </div>
+          <div style="padding: 10px; background: #EEF2FF; border: 2px solid var(--primary-color); border-radius: 6px;">
+            <h4 style="text-align:center; color: var(--primary-color); margin-top:0; margin-bottom: 10px;">⚡ Đạt 100%</h4>
+            <div class="form-group"><label>NUs</label><input type="number" id="kpi100_nu" placeholder="735000"></div>
+            <div class="form-group"><label>DS TỔNG</label><input type="number" id="kpi100_dst" placeholder="315000"></div>
+            <div class="form-group" style="margin: 0;"><label>DS N1</label><input type="number" id="kpi100_dsn1" placeholder="1050000"></div>
+          </div>
+        </div>
+        
+        <div class="flex-between" style="border-bottom: 1px solid #eee; padding-bottom: 8px; margin-top:15px;">
+          <h3 style="margin: 0; font-size: 1rem; color: var(--primary-color);">Thêm Hạng Mục Khác (Linh hoạt)</h3>
+          <button class="btn btn-outline" id="btnAddKpiLevel" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;">+ Thêm</button>
+        </div>
+        <div id="dynamicKpiContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <!-- dynamic kpi rows wrapper -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCancelEdit">Hủy / Đóng</button>
+        <button class="btn btn-primary" id="btnAddEmp">+ Xác nhận & Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Print Modal -->
+  <div id="bulkPrintModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header dark">
+        <h2>🖨️ In Phiếu Lương Hàng Loạt</h2>
+        <button class="modal-close" id="btnCloseBulkModal" title="Đóng">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.5rem;">
+        <p style="font-size: 0.9rem; color: #64748B; margin-bottom: 1.5rem;">
+          Hệ thống sẽ kết xuất từng file PDF cho nhân viên trong dải STT bạn chọn bên dưới.
+        </p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 1.5rem;">
+          <div class="form-group">
+            <label>STT Bắt đầu</label>
+            <input type="number" id="bulkStart" value="1" min="1">
+          </div>
+          <div class="form-group">
+            <label>STT Kết thúc</label>
+            <input type="number" id="bulkEnd" value="10" min="1">
+          </div>
+        </div>
+
+        <!-- Progress Bar inside Modal -->
+        <div id="bulkProgress" style="display: none; margin-bottom: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem;">
+            <span>Đang xử lý kết xuất...</span>
+            <span id="bulkStatus" style="font-weight: bold; color: var(--primary-color);">0/0</span>
+          </div>
+          <div style="width: 100%; height: 10px; background: #E2E8F0; border-radius: 5px; overflow: hidden;">
+            <div id="bulkProgressBar" style="width: 0%; height: 100%; background: var(--primary-color); transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btnStartBulkPrint" style="width: 100%; height: 45px; font-size: 1rem;">🚀 Bắt đầu Kết Xuất PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logout Confirmation Modal -->
+  <div id="logoutConfirmModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+      <div class="modal-header" style="justify-content: center; border-bottom: none; padding-bottom: 0;">
+        <div style="width: 60px; height: 60px; background: #FEE2E2; color: #DC2626; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-bottom: 1rem;">
+          🚪
+        </div>
+      </div>
+      <div class="modal-body" style="padding: 1rem 2rem 2rem;">
+        <h2 style="margin-bottom: 0.5rem; color: #1E293B;">Xác nhận đăng xuất?</h2>
+        <p style="color: #64748B; font-size: 0.95rem; margin-bottom: 2rem;">
+          Bạn có chắc chắn muốn thoát khỏi hệ thống Payroll hiện tại không?
+        </p>
+        <div style="display: flex; gap: 12px;">
+          <button class="btn btn-outline" id="btnCancelLogout" style="flex: 1; height: 45px;">Hủy</button>
+          <button class="btn btn-primary" id="btnDoLogoutConfirm" style="flex: 1; height: 45px; background: #DC2626; border-color: #DC2626;">Đăng xuất ngay</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="auth/auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
